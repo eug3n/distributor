@@ -1,0 +1,48 @@
+#!/usr/bin/env php
+<?php
+
+$basePath = dirname(__DIR__);
+require_once(__DIR__ . '/../../../vendor/autoload.php');
+
+use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Output\OutputInterface;
+
+$console = new Application();
+
+$console
+    ->register('render')
+    ->setDefinition(array(
+        new InputArgument('template', InputArgument::REQUIRED, 'Path to parameters template e.g.: parameters.yml.dist'),
+        new InputArgument('parameters', InputArgument::REQUIRED, 'Path to parameters ini file e.g.: parameters.ini')
+    ))
+    ->setDescription('Creates environment configuration from a .dist template')
+    ->setCode(function (InputInterface $input, OutputInterface $output) {
+        $templateFile = $input->getArgument('template');
+        $environmentFile = $input->getArgument('parameters');
+
+        if (!file_exists($environmentFile)) {
+            throw new \InvalidArgumentException(sprintf('Environment configuration file not found at %s', $environmentFile));
+        }
+        $environmentConfiguration = parse_ini_file($environmentFile, true);
+
+        if (!file_exists($templateFile)) {
+            throw new \InvalidArgumentException(sprintf('Template file not found at %s', $environmentFile));
+        }
+
+        $template = pathinfo($templateFile);
+
+        $loader = new Twig_Loader_Filesystem($template['dirname']);
+        $twig = new Twig_Environment($loader);
+
+        $renderedContent = $twig->render($template['basename'], $environmentConfiguration);
+
+        $configFile = preg_replace('/\.dist$/', '', $templateFile);
+
+        $output->writeln('Creating <info>' . $configFile . '</info>');
+
+        file_put_contents($configFile, $renderedContent);
+    });
+
+$console->run();
